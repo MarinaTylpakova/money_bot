@@ -23,6 +23,7 @@ class Config:
         self.chat = j['chat']
         self.groups = j['groups']
         self.users = [i for l in j['groups'].values() for i in l]
+        self.dbfile = j['dbfile']
 
 
 config = Config('MB_CONF')
@@ -82,7 +83,7 @@ class DB:
             new_line.writerow(obj.to_csv_list())
 
     def clear(self):
-        os.rename(self.filename, f'{datetime.datetime.now().timestamp():.0f}.{self.filename}')
+        os.rename(self.filename, f'{self.filename}.{datetime.datetime.now().timestamp():.0f}')
         with open(self.filename, 'w'):
             pass
 
@@ -96,7 +97,7 @@ class DB:
                 f.truncate(0)
 
 
-db = DB('money.csv')
+db = DB(config.dbfile)
 
 
 @bot.message_handler(commands=['start'])
