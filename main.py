@@ -100,18 +100,26 @@ class DB:
 db = DB(config.dbfile)
 
 
+def send_message_without_sound(chat_id, text):
+    bot.send_message(chat_id, text, disable_notification=True)
+
+
+def send_message_markup(chat_id, text, markup):
+    bot.send_message(chat_id, text=text, disable_notification=True, reply_markup=markup)
+
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     result = is_chat(message.from_user.id, message.chat.id)
     if result:
-        bot.send_message(message.chat.id, "Hi! I'm a money_bot"u'\U0001F4B8')
+        send_message_without_sound(message.chat.id, "Hi! I'm a money_bot"u'\U0001F4B8')
 
 
 @bot.message_handler(commands=['help'])
 def send_help(message):
     result = is_chat(message.from_user.id, message.chat.id)
     if result:
-        bot.send_message(message.chat.id, f"help\U0001F64C\n\ngroups: {','.join(config.groups)}\n\n/add\
+        send_message_without_sound(message.chat.id, f"help\U0001F64C\n\ngroups: {','.join(config.groups)}\n\n/add\
  - function for addition new buy\nformat: buy price\nformat for buying not in half: name_of_payer_1 price_1\
  name_of_payer_2 price_2\n\n/summary - balances for groups\n\n/table - \
  table with payers, buys, prices and price for everyone\n\n/table_min - \
@@ -123,7 +131,6 @@ def is_chat(user_id, chat_id):
     if user_id in config.users and chat_id == config.chat:
         return True
     else:
-        bot.send_message(chat_id, 'this bot doesn\'t work for you\U0001F595')
         return False
 
 
@@ -132,7 +139,7 @@ def add(message):
     result = is_chat(message.from_user.id, message.chat.id)
     if result:
         State.cur.user = message.from_user.id
-        bot.send_message(message.chat.id, "enter add parameters\nformat: name_of_buy price")
+        send_message_without_sound(message.chat.id, "enter add parameters\nformat: name_of_buy price")
         bot.register_next_step_handler(message, add_func)
 
 
@@ -164,13 +171,13 @@ def add_func(message):
                 button_half = types.InlineKeyboardButton(text='in half', callback_data='inhalf')
                 button_over = types.InlineKeyboardButton(text='other', callback_data='other')
                 markup.add(button_half, button_over)
-                bot.send_message(message.chat.id, text='half payment or not?', reply_markup=markup)
+                send_message_markup(message.chat.id, 'half payment or not?', markup)
 
             else:
-                bot.send_message(message.chat.id, 'wrong request')
+                send_message_without_sound(message.chat.id, 'wrong request')
         except:
             traceback.print_exc()
-            bot.send_message(message.chat.id, 'wrong request')
+            send_message_without_sound(message.chat.id, 'wrong request')
 
 
 def func_other(msg: telebot.types.Message):
@@ -190,13 +197,13 @@ def func_other(msg: telebot.types.Message):
                 db.put_obj(
                     DB.Obj(State.cur.payer, State.cur.buy, State.cur.price, price_parts, datetime.datetime.now()))
                 State.last_add_user = State.cur.user
-                bot.send_message(msg.chat.id, 'your buy was written')
+                send_message_without_sound(msg.chat.id, 'your buy was written')
             else:
-                bot.send_message(msg.chat.id, 'prices aren\'t equal sum\nplease write price')
+                send_message_without_sound(msg.chat.id, 'prices aren\'t equal sum\nplease write price')
                 bot.register_next_step_handler(msg, func_other)
     except:
         traceback.print_exc()
-        bot.send_message(msg.chat.id, 'wrong request')
+        send_message_without_sound(msg.chat.id, 'wrong request')
 
 
 def filter(call):
@@ -213,16 +220,16 @@ def callback_inline(call):
                 db.put_obj(
                     DB.Obj(State.cur.payer, State.cur.buy, State.cur.price, price_parts, datetime.datetime.now()))
                 State.last_add_user = State.cur.user
-                bot.send_message(call.message.chat.id, 'your buy was written')
+                send_message_without_sound(call.message.chat.id, 'your buy was written')
             elif call.data == 'other':
                 bot.delete_message(call.message.chat.id, call.message.message_id)
                 mes = bot.send_message(call.message.chat.id,
                                        "please write price for everyone\n"
-                                       "format: 1_payer 1_price 2_payer 2_price")
+                                       "format: 1_payer 1_price 2_payer 2_price", disable_notification=True)
                 bot.register_next_step_handler(mes, func_other)
     except:
         traceback.print_exc()
-        bot.send_message(call.message.chat.id, 'wrong request')
+        send_message_without_sound(call.message.chat.id, 'wrong request')
 
 
 @bot.message_handler(commands=['summary'])
@@ -238,10 +245,10 @@ def summary(message):
                     spends[g] += p
             balances = {g: pays[g] - spends[g] for g in config.groups}
             balances_str = "\n".join([f'{g} = {b}' for g, b in balances.items()])
-            bot.send_message(message.chat.id, f'Balances:\n`{balances_str}`', parse_mode='Markdown')
+            bot.send_message(message.chat.id, f'Balances:\n`{balances_str}`', parse_mode='Markdown', disable_notification=True)
     except:
         traceback.print_exc()
-        bot.send_message(message.chat.id, 'wrong request')
+        send_message_without_sound(message.chat.id, 'wrong request')
 
 
 @bot.message_handler(commands=['table'])
@@ -260,7 +267,7 @@ def table(message):
                               document=telebot.types.InputFile(file))
     except:
         traceback.print_exc()
-        bot.send_message(message.chat.id, 'wrong request')
+        send_message_without_sound(message.chat.id, 'wrong request')
 
 
 @bot.message_handler(commands=['table_min'])
@@ -273,10 +280,10 @@ def table_min(message):
                 table_summary.append([obj.payer, obj.buy, obj.price])
             bot.send_message(message.chat.id,
                              '`' + tabulate.tabulate(table_summary, headers="firstrow", tablefmt="orgtbl") + '`',
-                             parse_mode='Markdown')
+                             parse_mode='Markdown', disable_notification=True)
     except:
         traceback.print_exc()
-        bot.send_message(message.chat.id, 'wrong request')
+        send_message_without_sound(message.chat.id, 'wrong request')
 
 
 @bot.message_handler(commands=['clean'])
@@ -286,7 +293,7 @@ def clean(message):
     button_yes = types.InlineKeyboardButton(text='yes', callback_data='yes')
     button_no = types.InlineKeyboardButton(text='no', callback_data='no')
     markup.add(button_yes, button_no)
-    bot.send_message(message.chat.id, text='are you sure you want to clean table?', reply_markup=markup)
+    send_message_markup(message.chat.id, 'are you sure you want to clean table?', markup)
 
 
 @bot.callback_query_handler(lambda call: call.data in ['yes', 'no'] and filter(call))
@@ -302,13 +309,13 @@ def func_clean(call):
                          'first_name': call.from_user.first_name})
                     db.clear()
                     State.last_add_user = None
-                    bot.send_message(call.message.chat.id, 'table was cleaned')
+                    send_message_without_sound(call.message.chat.id, 'table was cleaned')
             elif call.data == 'no':
                 bot.delete_message(call.message.chat.id, call.message.message_id)
-                bot.send_message(call.message.chat.id, 'choose another command')
+                send_message_without_sound(call.message.chat.id, 'choose another command')
     except:
         traceback.print_exc()
-        bot.send_message(call.message.chat.id, 'wrong request')
+        send_message_without_sound(call.message.chat.id, 'wrong request')
 
 
 @bot.message_handler(commands=['delete'])
@@ -318,7 +325,7 @@ def delete(message):
     button_yes = types.InlineKeyboardButton(text='yes', callback_data='yes_del')
     button_no = types.InlineKeyboardButton(text='no', callback_data='no_del')
     markup.add(button_yes, button_no)
-    bot.send_message(message.chat.id, text='are you sure you want to delete row?', reply_markup=markup)
+    send_message_markup(message.chat.id, 'are you sure you want to delete row?', markup)
 
 
 @bot.callback_query_handler(lambda call: call.data in ['yes_del', 'no_del'] and filter(call))
@@ -329,20 +336,20 @@ def func_delete(call):
                 bot.delete_message(call.message.chat.id, call.message.message_id)
                 if State.last_add_user == call.from_user.id:
                     db.rm_last()
-                    bot.send_message(call.message.chat.id, 'entry was deleted')
+                    send_message_without_sound(call.message.chat.id, 'entry was deleted')
                     State.last_add_user = None
                     log({'cmd': 'delete',
                          'username': call.from_user.username,
                          'first_name': call.from_user.first_name})
                 else:
-                    bot.send_message(call.message.chat.id, 'you can\'t delete more entries')
+                    send_message_without_sound(call.message.chat.id, 'you can\'t delete more entries')
 
             elif call.data == 'no_del':
                 bot.delete_message(call.message.chat.id, call.message.message_id)
-                bot.send_message(call.message.chat.id, 'choose another command')
+                send_message_without_sound(call.message.chat.id, 'choose another command')
     except:
         traceback.print_exc()
-        bot.send_message(call.message.chat.id, 'wrong request')
+        send_message_without_sound(call.message.chat.id, 'wrong request')
 
 
 bot.polling()
