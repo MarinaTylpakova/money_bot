@@ -4,6 +4,7 @@ import datetime
 import io
 import json
 import os
+import time
 import traceback
 
 import tabulate
@@ -100,12 +101,15 @@ class DB:
 db = DB(config.dbfile)
 
 
-def send_message_without_sound(chat_id, text):
-    bot.send_message(chat_id, text, disable_notification=True)
-
-
-def send_message_markup(chat_id, text, markup):
-    bot.send_message(chat_id, text=text, disable_notification=True, reply_markup=markup)
+def send_message_without_sound(chat_id, text, **kwargs):
+    parse_mode = None
+    reply_markup = None
+    if 'parse_mode' in kwargs:
+        parse_mode = kwargs['parse_mode']
+    if 'reply_markup' in kwargs:
+        reply_markup = kwargs['reply_markup']
+    mes = bot.send_message(chat_id, text, disable_notification=True, parse_mode=parse_mode, reply_markup=reply_markup)
+    return mes
 
 
 @bot.message_handler(commands=['start'])
@@ -171,7 +175,7 @@ def add_func(message):
                 button_half = types.InlineKeyboardButton(text='in half', callback_data='inhalf')
                 button_over = types.InlineKeyboardButton(text='other', callback_data='other')
                 markup.add(button_half, button_over)
-                send_message_markup(message.chat.id, 'half payment or not?', markup)
+                send_message_without_sound(message.chat.id, 'half payment or not?', reply_markup=markup)
 
             else:
                 send_message_without_sound(message.chat.id, 'wrong request')
@@ -188,7 +192,7 @@ def func_other(msg: telebot.types.Message):
             req_parts = msg.text.split(' ')
             if len(req_parts) / 2 != len(config.groups):
                 raise ValueError('invalid format')
-            price_parts = {req_parts[i]: float(req_parts[i + 1]) for i in range(0, len(req_parts), 2)}
+            price_parts = {req_parts[i].lower(): float(req_parts[i + 1]) for i in range(0, len(req_parts), 2)}
             for k in price_parts:
                 if k not in config.groups:
                     raise ValueError('no such group')
@@ -223,9 +227,9 @@ def callback_inline(call):
                 send_message_without_sound(call.message.chat.id, 'your buy was written')
             elif call.data == 'other':
                 bot.delete_message(call.message.chat.id, call.message.message_id)
-                mes = bot.send_message(call.message.chat.id,
+                mes = send_message_without_sound(call.message.chat.id,
                                        "please write price for everyone\n"
-                                       "format: 1_payer 1_price 2_payer 2_price", disable_notification=True)
+                                       "format: 1_payer 1_price 2_payer 2_price")
                 bot.register_next_step_handler(mes, func_other)
     except:
         traceback.print_exc()
@@ -245,7 +249,7 @@ def summary(message):
                     spends[g] += p
             balances = {g: pays[g] - spends[g] for g in config.groups}
             balances_str = "\n".join([f'{g} = {b}' for g, b in balances.items()])
-            bot.send_message(message.chat.id, f'Balances:\n`{balances_str}`', parse_mode='Markdown', disable_notification=True)
+            send_message_without_sound(message.chat.id, f'Balances:\n`{balances_str}`', parse_mode='Markdown')
     except:
         traceback.print_exc()
         send_message_without_sound(message.chat.id, 'wrong request')
@@ -278,9 +282,9 @@ def table_min(message):
             table_summary = [['payer', 'buy', 'price']]
             for obj in db.get_all():
                 table_summary.append([obj.payer, obj.buy, obj.price])
-            bot.send_message(message.chat.id,
+            send_message_without_sound(message.chat.id,
                              '`' + tabulate.tabulate(table_summary, headers="firstrow", tablefmt="orgtbl") + '`',
-                             parse_mode='Markdown', disable_notification=True)
+                             parse_mode='Markdown')
     except:
         traceback.print_exc()
         send_message_without_sound(message.chat.id, 'wrong request')
@@ -293,7 +297,7 @@ def clean(message):
     button_yes = types.InlineKeyboardButton(text='yes', callback_data='yes')
     button_no = types.InlineKeyboardButton(text='no', callback_data='no')
     markup.add(button_yes, button_no)
-    send_message_markup(message.chat.id, 'are you sure you want to clean table?', markup)
+    send_message_without_sound(message.chat.id, 'are you sure you want to clean table?', reply_markup=markup)
 
 
 @bot.callback_query_handler(lambda call: call.data in ['yes', 'no'] and filter(call))
@@ -325,7 +329,7 @@ def delete(message):
     button_yes = types.InlineKeyboardButton(text='yes', callback_data='yes_del')
     button_no = types.InlineKeyboardButton(text='no', callback_data='no_del')
     markup.add(button_yes, button_no)
-    send_message_markup(message.chat.id, 'are you sure you want to delete row?', markup)
+    send_message_without_sound(message.chat.id, 'are you sure you want to delete row?', reply_markup=markup)
 
 
 @bot.callback_query_handler(lambda call: call.data in ['yes_del', 'no_del'] and filter(call))
@@ -352,4 +356,13 @@ def func_delete(call):
         send_message_without_sound(call.message.chat.id, 'wrong request')
 
 
-bot.polling()
+while True:
+    try:
+        bot.polling()
+    except:
+        traceback.print_exc()
+        time.sleep(3)
+
+
+
+
