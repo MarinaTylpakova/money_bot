@@ -31,6 +31,11 @@ config = Config('MB_CONF')
 bot = telebot.TeleBot(config.token)
 
 
+def decimal(f: float):
+    # TODO: get precision from Config
+    return round(f, 2)
+
+
 def log(data: dict):
     print(' | '.join([datetime.datetime.now().strftime("%d.%m.%Y %H:%M")] + [f'{k}:{v}' for k, v in data.items()]))
 
@@ -49,13 +54,18 @@ class State:
 
 
 class DB:
-    @dataclasses.dataclass
+    @dataclasses.dataclass(frozen=True)
     class Obj:
         payer: str
         buy: str
         price: float
         price_parts: dict[str, float]
         date: datetime.datetime
+
+        def __post_init__(self):
+            # 'frozen=True' disabled straight field setting 'obj.field=value'
+            object.__setattr__(self, 'price', decimal(self.price))
+            object.__setattr__(self, 'price_parts', {k: decimal(v) for k, v in self.price_parts.items()})
 
         @property
         def sorted_parts(self):
@@ -247,7 +257,7 @@ def summary(message):
                 pays[obj.payer] += obj.price
                 for g, p in obj.price_parts.items():
                     spends[g] += p
-            balances = {g: pays[g] - spends[g] for g in config.groups}
+            balances = {g: decimal(pays[g] - spends[g]) for g in config.groups}
             balances_str = "\n".join([f'{g} = {b}' for g, b in balances.items()])
             send_message_without_sound(message.chat.id, f'Balances:\n`{balances_str}`', parse_mode='Markdown')
     except:
