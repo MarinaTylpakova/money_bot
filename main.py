@@ -10,6 +10,7 @@ import traceback
 import tabulate
 import telebot
 from telebot import types
+from telebot.types import ReactionTypeEmoji
 
 
 class Config:
@@ -36,16 +37,17 @@ def log(data: dict):
 
 
 class CurrentBuy:
-    def __init__(self, payer, buy, price, user):
+    def __init__(self, payer, buy, price, user, message_id):
         self.payer: str = payer
         self.buy: str = buy
         self.price: float = price
         self.user: int = user
+        self.message_id: int = message_id
 
 
 class State:
     last_add_user = None
-    cur = CurrentBuy('', '', 0, 0)
+    cur = CurrentBuy('', '', 0, 0, 0)
 
 
 class DB:
@@ -112,6 +114,11 @@ def send_message_without_sound(chat_id, text, **kwargs):
     return mes
 
 
+def send_reaction(chat_id, message_id):
+    emoji = [ReactionTypeEmoji(u'\U0001F44C')]
+    bot.set_message_reaction(chat_id, message_id, emoji)
+
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     result = is_chat(message.from_user.id, message.chat.id)
@@ -143,11 +150,12 @@ def add(message):
     result = is_chat(message.from_user.id, message.chat.id)
     if result:
         State.cur.user = message.from_user.id
-        send_message_without_sound(message.chat.id, "enter add parameters\nformat: name_of_buy price")
-        bot.register_next_step_handler(message, add_func)
+        mes = send_message_without_sound(message.chat.id, "enter add parameters\nformat: name_of_buy price")
+        bot.register_next_step_handler(message, add_func, mes)
 
 
-def add_func(message):
+def add_func(message, mes):
+    bot.delete_message(mes.chat.id, mes.message_id)
     log({'cmd': 'add',
          'username': message.from_user.username,
          'first_name': message.from_user.first_name,
@@ -169,7 +177,7 @@ def add_func(message):
             price = float(request[-1])
 
             if isinstance(payer, str) and isinstance(buy, str):
-                State.cur = CurrentBuy(payer, buy, price, message.from_user.id)
+                State.cur = CurrentBuy(payer, buy, price, message.from_user.id, message.message_id)
 
                 markup = types.InlineKeyboardMarkup()
                 button_half = types.InlineKeyboardButton(text='in half', callback_data='inhalf')
@@ -184,12 +192,14 @@ def add_func(message):
             send_message_without_sound(message.chat.id, 'wrong request')
 
 
-def func_other(msg: telebot.types.Message):
+def func_other(msg: telebot.types.Message, mes):
     try:
         if int(State.cur.user) != int(msg.from_user.id):
-            bot.register_next_step_handler(msg, func_other)
+            bot.register_next_step_handler(msg, func_other, mes)
         else:
+            bot.delete_message(mes.chat.id, mes.message_id)
             req_parts = msg.text.split(' ')
+            State.cur.message_id = msg.message_id
             if len(req_parts) / 2 != len(config.groups):
                 raise ValueError('invalid format')
             price_parts = {req_parts[i].lower(): float(req_parts[i + 1]) for i in range(0, len(req_parts), 2)}
@@ -201,10 +211,10 @@ def func_other(msg: telebot.types.Message):
                 db.put_obj(
                     DB.Obj(State.cur.payer, State.cur.buy, State.cur.price, price_parts, datetime.datetime.now()))
                 State.last_add_user = State.cur.user
-                send_message_without_sound(msg.chat.id, 'your buy was written')
+                send_reaction(msg.chat.id, State.cur.message_id)
             else:
-                send_message_without_sound(msg.chat.id, 'prices aren\'t equal sum\nplease write price')
-                bot.register_next_step_handler(msg, func_other)
+                mes = send_message_without_sound(msg.chat.id, 'prices aren\'t equal sum\nplease write price')
+                bot.register_next_step_handler(msg, func_other, mes)
     except:
         traceback.print_exc()
         send_message_without_sound(msg.chat.id, 'wrong request')
@@ -224,13 +234,14 @@ def callback_inline(call):
                 db.put_obj(
                     DB.Obj(State.cur.payer, State.cur.buy, State.cur.price, price_parts, datetime.datetime.now()))
                 State.last_add_user = State.cur.user
-                send_message_without_sound(call.message.chat.id, 'your buy was written')
+                send_reaction(call.message.chat.id, State.cur.message_id)
             elif call.data == 'other':
                 bot.delete_message(call.message.chat.id, call.message.message_id)
                 mes = send_message_without_sound(call.message.chat.id,
                                        "please write price for everyone\n"
                                        "format: 1_payer 1_price 2_payer 2_price")
-                bot.register_next_step_handler(mes, func_other)
+                bot.register_next_step_handler(call.message, func_other, mes)
+
     except:
         traceback.print_exc()
         send_message_without_sound(call.message.chat.id, 'wrong request')
